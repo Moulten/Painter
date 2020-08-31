@@ -3,7 +3,6 @@
 
 #include "framework.h"
 #include "Figures.h"
-#include <iostream>
 
 #define MAX_LOADSTRING 100
 
@@ -15,7 +14,8 @@ RECT ClientRect;
 HBITMAP background;
 
 FullScreen full_screen;                         //Основной экран
-std::shared_ptr<PaintScreen> paintscreen;                        //Экран отображения
+                       //Экран отображения
+HWND CIRCLE_PARAMS, RECT_PARAMS;
 
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -32,8 +32,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Разместите код здесь.
-
-	std::cout << "cool";
 
     // Инициализация глобальных строк
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -59,7 +57,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             DispatchMessage(&msg);
         }
     }
-
     return (int) msg.wParam;
 }
 
@@ -110,28 +107,65 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
    GetClientRect(hWnd, &ClientRect);
-   //Создаем кнопки и ввод для отображения круга и квадрата
+
+     //Инициализируем основной экран
+   full_screen = FullScreen(ClientRect, CreatePatternBrush(background));
+ 
+  //Создаем кнопки и ввод для отображения круга и квадрата
+   HWND DISCRIPTION = CreateWindow(
+       TEXT("STATIC"),
+       TEXT(R"(
+Ввод всех значений через пробел
+
+Треугольник: позиция Х позиция Y Радиус
+
+Квадрат: позиция X позиция Y Ширина Высота
+
+Delete удаляет последнюю фигуру
+ )" ),
+       WS_CHILD | WS_VISIBLE | WS_BORDER,
+       20, 30, 240, 200, hWnd, 0, hInst, NULL
+   );
+   full_screen.AddWindow("Discription", DISCRIPTION);
 
    HWND CREATCIRCLE = CreateWindow(
        TEXT("BUTTON"), TEXT("Create Circle"), WS_CHILD | WS_VISIBLE,
-       90, ClientRect.bottom/2 - 300, 70, 30, hWnd, (HMENU)1001, hInst, NULL
+       150, ClientRect.bottom/2 - 70, 100, 30, hWnd, (HMENU)1001, hInst, NULL
    );
+   full_screen.AddWindow("Button_Create_Circle", CREATCIRCLE);
+
+   HWND CIRCLE_PARAMS = CreateWindow(TEXT("edit"), TEXT("0"),
+       WS_CHILD | WS_VISIBLE | WS_BORDER | ES_RIGHT, 20, ClientRect.bottom / 2 - 70, 140, 30,
+       hWnd, 0, hInst, NULL);
+   full_screen.AddWindow("Input_Circle_params", CIRCLE_PARAMS);
 
    HWND CREATRECT = CreateWindow(
        TEXT("BUTTON"), TEXT("Create Rect"), WS_CHILD | WS_VISIBLE,
-       90, ClientRect.bottom / 2 + 300, 70, 30, hWnd, (HMENU)1002, hInst, NULL
+       150, ClientRect.bottom / 2 + 70, 100, 30, hWnd, (HMENU)1002, hInst, NULL
    );
 
+   full_screen.AddWindow("Button_Create_Rect", CREATRECT);
 
+   HWND RECT_PARAMS = CreateWindow(TEXT("edit"), TEXT("0"),
+       WS_CHILD | WS_VISIBLE | WS_BORDER | ES_RIGHT, 20, ClientRect.bottom / 2 + 70, 140, 30,
+       hWnd, 0, hInst, NULL);
 
-   //Инициализируем основной экран
-   full_screen = FullScreen(ClientRect, CreatePatternBrush(background));
-   
+   full_screen.AddWindow("Input_Rect_params", RECT_PARAMS);
+
+   HWND DELETE_BUTTON = CreateWindow(
+       TEXT("BUTTON"), TEXT("Delete"), WS_CHILD | WS_VISIBLE,
+       150, ClientRect.bottom / 2 + 140, 100, 30, hWnd, (HMENU)1003, hInst, NULL
+   );
+
+   full_screen.AddWindow("Button_Undo", DELETE_BUTTON);
+
    //Инициализируем экран отображения
-   FigureParams params = { 200,50, {1000,1000},WHITE_BRUSH };
-   paintscreen = std::make_shared<PaintScreen>(params);                       //Экран отображения
-
-   full_screen.AddScreen(paintscreen);
+   FigureParams params = { 850,330, {1100,600},WHITE_BRUSH};
+                  
+   full_screen.AddScreen(
+       "PaintScreen", 
+       std::make_unique<PaintScreen>(params)       //Экран отображения
+   );
    if (!hWnd)
    {
       return FALSE;
@@ -157,6 +191,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    static int Len;
+    TCHAR input_text[100];
+    std::wstring ws;
     switch (message)
     {
     case WM_COMMAND:
@@ -171,41 +208,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case IDM_EXIT:
                 DestroyWindow(hWnd);
                 break;
+            case 1001:    //Добавить круг
+            {
+                Len = GetWindowText(full_screen.GetWindow("Input_Circle_params"), input_text, 100);
+                ws = std::wstring(input_text, Len);
+                full_screen.GetScreen("PaintScreen").AddPicture(std::string(ws.begin(), ws.end()), FigureType::CIRCLE);
+                RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+                break;
+                
+            }
+            case 1002:     //Добавить квадрат
+            {
+                Len = GetWindowText(full_screen.GetWindow("Input_Rect_params"), input_text, 200);
+                ws = std::wstring(input_text, Len);
+                full_screen.GetScreen("PaintScreen").AddPicture(std::string(ws.begin(), ws.end()), FigureType::RECT);
+                RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+                break;
+            }
+            case 1003:
+            {
+                full_screen.GetScreen("PaintScreen").DeleteSub();
+                RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+                break;
+            }
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
         }
-
-        //Кнопки добавления фигур
-        switch (wParam) {
-        case 1001:    //Добавить круг
-            paintscreen->AddPicture("", FigureType::CIRCLE);
-            break;
-
-        case 1002:     //Добавить квадрат
-            paintscreen->AddPicture("", FigureType::RECT);
-            break;
-        }
         break;
     case WM_PAINT:
         {
-		
-		//Создаем класс экрана с кнопками
-		//Создаем класс экрана для отрисовки (Наблюдателя)
-		//Добавляем наблюдателя
-		//Добавляем все в основной экран
-		
-
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps); // Add RAII?
             // TODO: Добавьте сюда любой код прорисовки, использующий HDC...
-			//Красим в черный цвет
-			//FillRect(hdc, &ClientRect,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
-			FullScreen new_screen(ClientRect, CreatePatternBrush(background));
-            new_screen.Paint(hdc);
-
+			//FullScreen new_screen(ClientRect, CreatePatternBrush(background));
+            //new_screen.Paint(hdc);
+            full_screen.Paint(hdc);
 			// Вывод на экран 
-			SetStretchBltMode(hdc, COLORONCOLOR);
+			//SetStretchBltMode(hdc, COLORONCOLOR);
 
             EndPaint(hWnd, &ps);
         }
